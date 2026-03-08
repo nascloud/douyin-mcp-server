@@ -50,3 +50,4 @@ temp/
 # Local
 .env
 output/
+.omc/

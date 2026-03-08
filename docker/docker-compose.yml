@@ -1,0 +1,15 @@
+version: "3.9"
+
+services:
+  douyin-mcp:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: douyin-mcp-server
+    environment:
+      API_KEY: ${API_KEY}
+      HOST: 0.0.0.0
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
