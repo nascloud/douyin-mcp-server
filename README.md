@@ -1,266 +1,153 @@
-# 短视频文案提取器
+# 抖音 MCP Server
 
 [![PyPI version](https://badge.fury.io/py/douyin-mcp-server.svg)](https://badge.fury.io/py/douyin-mcp-server)
 [![Python version](https://img.shields.io/pypi/pyversions/douyin-mcp-server.svg)](https://pypi.org/project/douyin-mcp-server/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-从短视频分享链接下载无水印视频，AI 自动提取语音文案。
+当前分支是精简后的 **streamable-http 版抖音 MCP 服务**，主实现以 `docker/server.py` 为准。
 
-![WebUI 界面预览](douyin-video.png)
+它提供的核心能力包括：从抖音分享文本中提取链接、解析真实 `video_id`、获取无水印视频地址、调用阿里云百炼 ASR 提取文本，并通过 `FastMCP` 以 `streamable-http` 方式对外暴露 MCP 能力。
 
-<a href="https://glama.ai/mcp/servers/@yzfly/douyin-mcp-server">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@yzfly/douyin-mcp-server/badge" alt="douyin-mcp-server MCP server" />
-</a>
+## 当前实现范围
 
-## ✨ 功能特性
+当前仓库文档与运行方式均以以下入口为准：
 
-- 🎬 **无水印视频** - 获取高质量无水印视频下载链接
-- 🎙️ **AI 语音识别** - 使用硅基流动 SenseVoice 自动提取文案
-- 📑 **大文件支持** - 自动分段处理超过 1 小时或 50MB 的音频
-- 🌐 **WebUI** - 现代化浏览器界面，无需命令行
-- 🔌 **MCP 集成** - 支持 Claude Desktop 等 AI 应用
+- `docker/server.py`：当前分支唯一主服务入口
+- `docker/Dockerfile`：容器镜像构建方式
+- `docker/docker-compose.yml`：本地 Docker Compose 启动方式
 
----
+本分支不再以旧版页面入口、CLI 脚本或历史入口作为主要使用方式。
 
-## 📦 使用方式
+## 核心能力
 
-| 方式 | 适用场景 | 特点 |
-|------|----------|------|
-| [**WebUI**](#-webui-推荐) | 普通用户 | 浏览器操作，最简单 |
-| [**MCP Server**](#-mcp-server) | Claude Desktop 用户 | AI 对话中直接调用 |
-| [**命令行**](#️-命令行工具) | 开发者 | 批量处理，脚本集成 |
+- 从抖音分享文本中提取可用链接
+- 跟随短链接跳转并解析真实 `video_id`
+- 请求分享页并从 `window._ROUTER_DATA` 提取视频或图集数据
+- 生成无水印视频播放地址（将 `playwm` 替换为 `play`）
+- 调用阿里云百炼 ASR 接口，直接基于视频 URL 进行转录
+- 通过 `streamable-http` 暴露 MCP tools、resource 和 prompt
 
----
+## 关键文件
 
-## 🌐 WebUI (推荐)
+- `README.md`：当前项目说明
+- `docker/server.py`：服务实现与 MCP 能力定义
+- `docker/Dockerfile`：Docker 镜像构建文件
+- `docker/docker-compose.yml`：Docker Compose 配置
+- `pyproject.toml`：项目元数据与 Python 依赖声明
+- `LICENSE`：许可证文本
 
-最简单的使用方式，打开浏览器即可使用。
+## 环境要求
 
-### 快速开始
+- Python `>=3.10`（见 `pyproject.toml`）
+- 推荐使用 `uv` 管理本地依赖
+- Docker 运行方式会在镜像内安装所需依赖
 
-```bash
-# 1. 克隆项目
-git clone https://github.com/yzfly/douyin-mcp-server.git
-cd douyin-mcp-server
+## 本地运行
 
-# 2. 安装依赖
-uv sync
-
-# 3. 启动服务
-uv run python web/app.py
-```
-
-打开浏览器访问 **http://localhost:8080**
-
-### 配置 API Key
-
-有两种方式配置 API Key：
-
-**方式一：浏览器内配置（推荐）**
-
-1. 打开 WebUI 页面
-2. 点击顶部的「API 未配置」按钮
-3. 在弹窗中输入 API Key 并保存
-4. API Key 保存在浏览器本地，刷新页面后仍有效
-
-**方式二：环境变量**
+安装依赖：
 
 ```bash
-export API_KEY="sk-xxxxxxxxxxxxxxxx"
-uv run python web/app.py
-```
-
-> 💡 获取免费 API Key：[硅基流动](https://cloud.siliconflow.cn/i/TxUlXG3u)（新用户有免费额度）
-
-### 功能说明
-
-| 操作 | 说明 | 需要 API |
-|------|------|:--------:|
-| **获取信息** | 解析视频标题、ID，获取无水印下载链接 | ❌ |
-| **提取文案** | 下载视频 → 提取音频 → AI 语音识别 | ✅ |
-| **下载视频** | 点击下载链接保存无水印视频 | ❌ |
-| **复制/下载文案** | 一键复制或下载 Markdown 格式文案 | - |
-
-### 使用步骤
-
-1. **粘贴链接** - 将分享链接粘贴到输入框
-2. **点击按钮** - 选择「获取信息」或「提取文案」
-3. **查看结果** - 右侧显示视频信息和提取的文案
-4. **导出** - 复制文案或下载 Markdown 文件
-
----
-
-## 🚀 MCP Server
-
-在 Claude Desktop、Cherry Studio 等支持 MCP 的应用中使用。
-
-### 配置方法
-
-编辑 MCP 配置文件，添加：
-
-```json
-{
-  "mcpServers": {
-    "douyin-mcp": {
-      "command": "uvx",
-      "args": ["douyin-mcp-server"],
-      "env": {
-        "API_KEY": "sk-xxxxxxxxxxxxxxxx"
-      }
-    }
-  }
-}
-```
-
-### 可用工具
-
-| 工具名 | 功能 | 需要 API |
-|--------|------|:--------:|
-| `parse_douyin_video_info` | 解析视频信息 | ❌ |
-| `get_douyin_download_link` | 获取下载链接 | ❌ |
-| `extract_douyin_text` | 提取视频文案 | ✅ |
-
-### 对话示例
-
-```
-用户：帮我提取这个视频的文案 https://v.douyin.com/xxxxx/
-
-Claude：我来帮你提取视频文案...
-[调用 extract_douyin_text 工具]
-提取完成，文案内容如下：
-...
-```
-
----
-
-## 🛠️ 命令行工具
-
-适合开发者和批量处理场景。
-
-### 安装
-
-```bash
-git clone https://github.com/yzfly/douyin-mcp-server.git
-cd douyin-mcp-server
 uv sync
 ```
 
-### 命令说明
+启动 MCP 服务：
 
 ```bash
-# 查看帮助
-uv run python douyin-video/scripts/douyin_downloader.py --help
-
-# 获取视频信息（无需 API）
-uv run python douyin-video/scripts/douyin_downloader.py -l "分享链接" -a info
-
-# 下载无水印视频
-uv run python douyin-video/scripts/douyin_downloader.py -l "分享链接" -a download -o ./videos
-
-# 提取文案（需要 API_KEY）
-export API_KEY="sk-xxx"
-uv run python douyin-video/scripts/douyin_downloader.py -l "分享链接" -a extract -o ./output
-
-# 提取文案并保存视频
-uv run python douyin-video/scripts/douyin_downloader.py -l "分享链接" -a extract -o ./output --save-video
+uv run python docker/server.py
 ```
 
-### 输出格式
+自定义端口：
 
-```
-output/
-└── 7600361826030865707/
-    ├── transcript.md    # 文案文件
-    └── *.mp4            # 视频文件（可选）
+```bash
+PORT=8000 uv run python docker/server.py
 ```
 
-**transcript.md 内容：**
+提供阿里云百炼 API Key：
 
-```markdown
-# 视频标题
-
-| 属性 | 值 |
-|------|-----|
-| 视频ID | `7600361826030865707` |
-| 提取时间 | 2026-01-30 14:19:00 |
-| 下载链接 | [点击下载](url) |
-
----
-
-## 文案内容
-
-这里是 AI 识别的语音文案...
+```bash
+API_KEY="your_api_key" uv run python docker/server.py
 ```
 
----
+默认监听配置来自 `docker/server.py`：
 
-## 📋 系统要求
+- `HOST=0.0.0.0`
+- `PORT=8000`
 
-| 依赖 | 说明 | 安装方式 |
-|------|------|----------|
-| uv | Python 包管理 | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
-| Python | 3.10+ | `uv python install 3.12` |
-| FFmpeg | 音视频处理 | `brew install ffmpeg` (macOS) <br> `apt install ffmpeg` (Ubuntu) |
+## Docker 运行
 
----
+构建镜像：
 
-## 🔧 技术说明
+```bash
+docker build -f docker/Dockerfile -t douyin-mcp-server .
+```
 
-### 大文件处理
+启动容器：
 
-当音频文件超过 API 限制时（1 小时或 50MB），自动执行：
+```bash
+docker run --rm -p 8000:8000 -e API_KEY="your_api_key" douyin-mcp-server
+```
 
-1. 检测音频时长和文件大小
-2. 使用 FFmpeg 分割成 9 分钟的片段
-3. 逐段调用 API 转录
-4. 合并所有文本结果
+使用 Docker Compose：
 
-### API 说明
+```bash
+docker compose -f docker/docker-compose.yml up --build
+```
 
-语音识别使用 [硅基流动 SenseVoice API](https://cloud.siliconflow.cn/)：
+`docker/docker-compose.yml` 默认注入并暴露以下配置：
 
-- 模型：`FunAudioLLM/SenseVoiceSmall`
-- 限制：单次最大 1 小时 / 50MB（已自动处理）
-- 费用：新用户有免费额度
+- `API_KEY`
+- `HOST=0.0.0.0`
+- `PORT=8000`
+- 端口映射：`8000:8000`
 
----
+## MCP 暴露能力
 
-## 📝 更新日志
+以下名称应与 `docker/server.py` 中定义保持一致。
 
-### v1.4.0 (最新)
+### Tools
 
-- 🌐 **WebUI** - 新增浏览器可视化界面
-- 🔑 **浏览器配置 API Key** - 无需环境变量
-- 📑 **大文件支持** - 自动分段处理长音频
+- `get_douyin_download_link`：获取抖音视频的无水印下载链接
+- `extract_douyin_text`：从抖音分享链接提取视频文本内容，需要 `API_KEY`
+- `parse_douyin_video_info`：解析抖音分享链接并返回基础信息
 
-### v1.3.0
+### Resource
 
-- ✨ Claude Code Skill 支持
-- 📄 Markdown 格式输出
+- `douyin://video/{video_id}`：根据视频 ID 返回视频详细信息
 
-### v1.2.0
+### Prompt
 
-- 🔄 API 升级
+- `douyin_text_extraction_guide`：内置使用说明
 
-### v1.0.0
+## 处理流程
 
-- 🎉 首次发布
+当前实现的主要处理流程如下：
 
----
+1. 从分享文本中通过正则提取 URL
+2. 请求短链接并跟随跳转，解析真实 `video_id`
+3. 请求 `https://www.iesdouyin.com/share/video/{video_id}`
+4. 从 HTML 中提取 `window._ROUTER_DATA`
+5. 从 `loaderData` 中兼容读取视频页或图集页
+6. 从 `video.play_addr.url_list[0]` 读取播放地址，并将 `playwm` 替换为 `play`
+7. 调用阿里云百炼 `dashscope.audio.asr.Transcription`，直接基于视频 URL 做转录
+8. 通过 `FastMCP` 以 `streamable-http` 方式对外提供服务
 
-## ⚠️ 免责声明
+## 使用说明
+
+- 如果只需要解析视频标题、`video_id` 和无水印地址，可直接调用 `parse_douyin_video_info` 或 `get_douyin_download_link`
+- 如果需要提取视频语音文本，必须先配置环境变量 `API_KEY`
+- 服务启动后使用 `streamable-http` 传输方式对外提供 MCP 能力，监听地址由 `HOST` 和 `PORT` 控制
+
+## 免责声明
 
 - 本项目仅供学习和研究使用
-- 使用者需遵守相关法律法规
-- 禁止用于侵犯知识产权的行为
+- 使用者需遵守相关法律法规与平台条款
+- 禁止用于侵犯知识产权或其他非法用途
 - 作者不对使用本项目产生的损失承担责任
 
----
+## 许可证
 
-## 📄 许可证
+本项目采用 **Apache License 2.0**，以仓库根目录 `LICENSE` 文件为准。
 
-Apache License 2.0
+## 说明
 
-## 👨‍💻 作者
-
-**yzfly** - [GitHub](https://github.com/yzfly) | [Email](mailto:yz.liu.me@gmail.com)
+当前仓库的 `pyproject.toml` 仍声明为 MIT，但仓库根目录 `LICENSE` 为 Apache License 2.0。本文档已按 `LICENSE` 文件进行说明，建议后续同步修正项目元数据以消除不一致。
