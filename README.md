@@ -100,6 +100,43 @@ docker compose -f docker/docker-compose.yml up --build
 - `PORT=8000`
 - 端口映射：`8000:8000`
 
+## GHCR 镜像发布与使用
+
+当前仓库已提供 GitHub Actions workflow，用于在 `streamable-http` 分支发生 `push` 时，自动构建并发布当前分支对应的 Docker 镜像到 GHCR；也可通过 `workflow_dispatch` 手动触发。
+
+镜像固定发布到：
+
+- `ghcr.io/<owner>/douyin-mcp-server:streamable-http`
+- `ghcr.io/<owner>/douyin-mcp-server:sha-<shortsha>`
+
+说明：
+
+- 该镜像仅对应当前 `streamable-http` 分支版本
+- 不发布 `latest`，避免与历史版本或其他分支形态混淆
+- 当前 workflow 仅构建 `linux/amd64`
+
+拉取镜像：
+
+```bash
+docker pull ghcr.io/<owner>/douyin-mcp-server:streamable-http
+```
+
+运行镜像：
+
+```bash
+docker run --rm -p 8000:8000 -e API_KEY="your_api_key" ghcr.io/<owner>/douyin-mcp-server:streamable-http
+```
+
+如需使用自定义监听配置，也可显式传入环境变量：
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e API_KEY="your_api_key" \
+  -e HOST="0.0.0.0" \
+  -e PORT="8000" \
+  ghcr.io/<owner>/douyin-mcp-server:streamable-http
+```
+
 ## MCP 暴露能力
 
 以下名称应与 `docker/server.py` 中定义保持一致。
