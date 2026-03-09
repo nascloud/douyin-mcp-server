@@ -11,6 +11,8 @@ Docker 版抖音 MCP 服务器（官方 FastMCP + Streamable HTTP）
 import os
 import re
 import json
+import time
+import logging
 import requests
 from typing import Optional
 from urllib import request
@@ -31,6 +33,13 @@ HEADERS = {
 # 默认 API 配置
 DEFAULT_MODEL = "paraformer-v2"
 REQUEST_TIMEOUT = 15
+ASR_WAIT_WARN_SECONDS = 20
+
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 class DouyinProcessor:
@@ -39,12 +48,12 @@ class DouyinProcessor:
     def __init__(self, api_key: str, model: Optional[str] = None):
         self.api_key = api_key
         self.model = model or DEFAULT_MODEL
-        # 设置阿里云百炼API密钥
         if api_key:
             dashscope.api_key = api_key
 
     def parse_share_url(self, share_text: str) -> dict:
         """从分享文本中提取无水印视频链接"""
+        started_at = time.perf_counter()
         urls = re.findall(
             r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+",
             share_text,
@@ -53,12 +62,20 @@ class DouyinProcessor:
             raise ValueError("未找到有效的分享链接")
 
         share_url = urls[0]
-        share_response = requests.get(share_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        video_id = share_response.url.split("?")[0].strip("/").split("/")[-1]
-        share_url = f"https://www.iesdouyin.com/share/video/{video_id}"
+        logger.info("开始解析分享链接: %s", share_url)
 
+        redirect_started_at = time.perf_counter()
+        share_response = requests.get(share_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+        redirect_elapsed = time.perf_counter() - redirect_started_at
+        video_id = share_response.url.split("?")[0].strip("/").split("/")[-1]
+        logger.info("短链跳转完成: video_id=%s, elapsed=%.2fs", video_id, redirect_elapsed)
+
+        share_url = f"https://www.iesdouyin.com/share/video/{video_id}"
+        page_started_at = time.perf_counter()
         response = requests.get(share_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
+        page_elapsed = time.perf_counter() - page_started_at
+        logger.info("视频页请求完成: status=%s, elapsed=%.2fs", response.status_code, page_elapsed)
 
         pattern = re.compile(
             pattern=r"window\._ROUTER_DATA\s*=\s*(.*?)</script>",
@@ -78,12 +95,14 @@ class DouyinProcessor:
         elif note_key in json_data["loaderData"]:
             original_video_info = json_data["loaderData"][note_key]["videoInfoRes"]
         else:
-            raise Exception("无法从JSON中解析视频或图集信息")
+            raise RuntimeError("无法从JSON中解析视频或图集信息")
 
         data = original_video_info["item_list"][0]
         video_url = data["video"]["play_addr"]["url_list"][0].replace("playwm", "play")
         desc = data.get("desc", "").strip() or f"douyin_{video_id}"
         desc = re.sub(r'[\\/:*?"<>|]', "_", desc)
+        total_elapsed = time.perf_counter() - started_at
+        logger.info("分享链接解析完成: video_id=%s, total_elapsed=%.2fs", video_id, total_elapsed)
 
         return {
             "url": video_url,
@@ -93,32 +112,56 @@ class DouyinProcessor:
 
     def extract_text_from_video_url(self, video_url: str) -> str:
         """从视频URL中提取文字（使用阿里云百炼API）"""
+        started_at = time.perf_counter()
+        task_id = None
         try:
+            logger.info("开始提交 ASR 任务: model=%s", self.model)
+            submit_started_at = time.perf_counter()
             task_response = dashscope.audio.asr.Transcription.async_call(
                 model=self.model,
                 file_urls=[video_url],
                 language_hints=["zh", "en"],
             )
+            submit_elapsed = time.perf_counter() - submit_started_at
 
-            transcription_response = dashscope.audio.asr.Transcription.wait(
-                task=task_response.output.task_id
-            )
+            task_id = task_response.output.task_id
+            logger.info("ASR 任务提交完成: task_id=%s, elapsed=%.2fs", task_id, submit_elapsed)
+
+            wait_started_at = time.perf_counter()
+            transcription_response = dashscope.audio.asr.Transcription.wait(task=task_id)
+            wait_elapsed = time.perf_counter() - wait_started_at
+            if wait_elapsed >= ASR_WAIT_WARN_SECONDS:
+                logger.warning("ASR 任务等待完成: task_id=%s, elapsed=%.2fs", task_id, wait_elapsed)
+            else:
+                logger.info("ASR 任务等待完成: task_id=%s, elapsed=%.2fs", task_id, wait_elapsed)
 
             if transcription_response.status_code == HTTPStatus.OK:
                 for transcription in transcription_response.output["results"]:
                     url = transcription["transcription_url"]
+                    logger.info("开始下载转录结果: task_id=%s", task_id)
+                    result_fetch_started_at = time.perf_counter()
                     result = json.loads(
                         request.urlopen(url, timeout=REQUEST_TIMEOUT).read().decode("utf8")
                     )
+                    result_fetch_elapsed = time.perf_counter() - result_fetch_started_at
+                    logger.info("转录结果下载完成: task_id=%s, elapsed=%.2fs", task_id, result_fetch_elapsed)
 
                     if "transcripts" in result and len(result["transcripts"]) > 0:
+                        total_elapsed = time.perf_counter() - started_at
+                        logger.info("文本提取完成: task_id=%s, total_elapsed=%.2fs", task_id, total_elapsed)
                         return result["transcripts"][0]["text"]
                     return "未识别到文本内容"
-            else:
-                raise Exception(f"转录失败: {transcription_response.output.message}")
+                raise RuntimeError(f"转录结果为空: task_id={task_id}")
 
+            message = getattr(transcription_response.output, "message", "")
+            raise RuntimeError(
+                f"转录失败: status_code={transcription_response.status_code}, task_id={task_id}, message={message}"
+            )
         except Exception as e:
-            raise Exception(f"提取文字时出错: {str(e)}")
+            logger.exception("extract_text_from_video_url 失败: task_id=%s", task_id)
+            raise RuntimeError(
+                f"提取文字时出错: video_url={video_url}, model={self.model}, task_id={task_id}, error={type(e).__name__}: {str(e)}"
+            ) from e
 
 
 @mcp.tool()
@@ -144,7 +187,7 @@ def get_douyin_download_link(share_link: str) -> str:
         return json.dumps(
             {
                 "status": "error",
-                "error": f"获取下载链接失败: {str(e)}",
+                "error": f"获取下载链接失败: {type(e).__name__}: {str(e)}",
             },
             ensure_ascii=False,
             indent=2,
@@ -158,6 +201,7 @@ async def extract_douyin_text(
     ctx: Context = None,
 ) -> str:
     """从抖音分享链接提取视频中的文本内容"""
+    started_at = time.perf_counter()
     try:
         api_key = os.getenv("API_KEY")
         if not api_key:
@@ -173,14 +217,22 @@ async def extract_douyin_text(
             ctx.info("正在从视频中提取文本...")
         text_content = processor.extract_text_from_video_url(video_info["url"])
 
+        total_elapsed = time.perf_counter() - started_at
+        logger.info(
+            "extract_douyin_text 调用完成: video_id=%s, total_elapsed=%.2fs",
+            video_info["video_id"],
+            total_elapsed,
+        )
         if ctx:
             ctx.info("文本提取完成!")
         return text_content
-
     except Exception as e:
+        total_elapsed = time.perf_counter() - started_at
+        error_message = f"提取抖音视频文本失败: {type(e).__name__}: {str(e)}"
+        logger.exception("extract_douyin_text 调用失败: elapsed=%.2fs", total_elapsed)
         if ctx:
-            ctx.error(f"处理过程中出现错误: {str(e)}")
-        raise Exception(f"提取抖音视频文本失败: {str(e)}")
+            ctx.error(error_message)
+        raise RuntimeError(error_message) from e
 
 
 @mcp.tool()
@@ -204,7 +256,7 @@ def parse_douyin_video_info(share_link: str) -> str:
         return json.dumps(
             {
                 "status": "error",
-                "error": str(e),
+                "error": f"{type(e).__name__}: {str(e)}",
             },
             ensure_ascii=False,
             indent=2,
@@ -220,7 +272,7 @@ def get_video_info(video_id: str) -> str:
         video_info = processor.parse_share_url(share_url)
         return json.dumps(video_info, ensure_ascii=False, indent=2)
     except Exception as e:
-        return f"获取视频信息失败: {str(e)}"
+        return f"获取视频信息失败: {type(e).__name__}: {str(e)}"
 
 
 @mcp.prompt()
@@ -248,6 +300,7 @@ def main():
     """启动 MCP 服务器（streamable-http 传输）"""
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
+    logger.info("启动 MCP 服务: host=%s, port=%s, request_timeout=%ss", host, port, REQUEST_TIMEOUT)
     mcp.run(transport="streamable-http", host=host, port=port)
 
 
