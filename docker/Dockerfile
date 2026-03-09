@@ -14,7 +14,7 @@ RUN apt-get update \
 
 # 安装 Python 依赖
 RUN pip install --no-cache-dir \
-    fastmcp \
+    fastmcp==3.1.0 \
     requests \
     dashscope
 
