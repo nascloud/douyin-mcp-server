@@ -279,7 +279,7 @@ def main():
     logger.info("启动 MCP 服务: host=%s, port=%s", host, port)
     
     # 使用 FastMCP 官方方式启动
-    mcp.run(transport="streamable-http")
+    mcp.run(transport="streamable-http", host=host, port=port)
 
 
 if __name__ == "__main__":
