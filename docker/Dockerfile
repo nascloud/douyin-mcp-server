@@ -12,14 +12,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir \
-    fastmcp==3.1.0 \
-    requests \
-    dashscope
+# 复制依赖文件并安装
+COPY docker/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
 
-# 复制 Docker 版服务文件
+# 复制 Docker 版服务文件和健康检查脚本
 COPY docker/server.py /app/server.py
+COPY docker/healthcheck.py /app/healthcheck.py
 
 EXPOSE 8000
 

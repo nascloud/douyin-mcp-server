@@ -1,0 +1,8 @@
+# 抖音 MCP Server 依赖
+# 与 pyproject.toml 保持同步
+
+fastmcp==3.1.0
+requests>=2.28.0
+dashscope
+uvicorn>=0.24.0
+starlette>=0.27.0

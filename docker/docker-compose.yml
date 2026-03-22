@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   douyin-mcp:
     build:
@@ -13,3 +11,9 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "/app/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

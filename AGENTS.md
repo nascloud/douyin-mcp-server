@@ -197,9 +197,7 @@ return json.dumps(
    - `extract_text_from_video_url()`：调用 ASR 提取文本
 
 2. **MCP 工具函数**：
-   - `get_douyin_download_link()`：获取无水印链接
-   - `extract_douyin_text()`：完整文本提取流程
-   - `parse_douyin_video_info()`：解析视频基本信息
+   - `process_douyin_video()`：统一处理抖音视频，返回视频信息、无水印下载链接和文本内容
 
 3. **MCP 资源**：
    - `douyin://video/{video_id}`：根据 ID 查询视频详情
