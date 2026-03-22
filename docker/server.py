@@ -19,11 +19,7 @@ from urllib import request
 from http import HTTPStatus
 
 import dashscope
-import uvicorn
 from fastmcp import FastMCP, Context
-from starlette.applications import Starlette
-from starlette.routing import Route, Mount
-from starlette.responses import JSONResponse
 
 
 # 创建 MCP 服务器实例（官方 FastMCP）
@@ -276,30 +272,14 @@ def douyin_text_extraction_guide() -> str:
 """
 
 
-async def health_check(request):
-    """健康检查端点"""
-    return JSONResponse({"status": "healthy", "service": "douyin-mcp-server"})
-
-
 def main():
-    """启动 MCP 服务器（streamable-http 传输 + 健康检查）"""
+    """启动 MCP 服务器（streamable-http 传输）"""
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
-    logger.info("启动 MCP 服务: host=%s, port=%s, request_timeout=%ss", host, port, REQUEST_TIMEOUT)
+    logger.info("启动 MCP 服务: host=%s, port=%s", host, port)
     
-    # 获取 FastMCP 的 ASGI 应用
-    mcp_app = mcp.http_app(transport='streamable-http')
-    
-    # 创建 Starlette 应用，包含 MCP 路由和健康检查端点
-    starlette_app = Starlette(
-        routes=[
-            Route("/health", health_check),
-            Mount("/mcp", app=mcp_app, strict_slashes=False),
-        ]
-    )
-    
-    # 使用 uvicorn 运行
-    uvicorn.run(starlette_app, host=host, port=port, log_level="info")
+    # 使用 FastMCP 官方方式启动
+    mcp.run(transport="streamable-http")
 
 
 if __name__ == "__main__":
