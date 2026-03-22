@@ -143,7 +143,7 @@ docker run --rm -p 8000:8000 \
 
 ### Tools
 
-TJ|- `process_douyin_video`：处理抖音视频，返回视频信息、无水印下载链接，以及（如配置了 `API_KEY`）提取的文本内容
+- `process_douyin_video`：处理抖音视频，返回视频信息、无水印下载链接，以及（如配置了 `API_KEY`）提取的文本内容
 
 ### Resource
 
@@ -168,7 +168,7 @@ TJ|- `process_douyin_video`：处理抖音视频，返回视频信息、无水�
 
 ## 使用说明
 
-WK|- 如果只需要解析视频标题、`video_id` 和无水印地址，可直接调用 `process_douyin_video`
+- 如果只需要解析视频标题、`video_id` 和无水印地址，可直接调用 `process_douyin_video`
 - 如果需要提取视频语音文本，必须先配置环境变量 `API_KEY`
 - 服务启动后使用 `streamable-http` 传输方式对外提供 MCP 能力，监听地址由 `HOST` 和 `PORT` 控制
 
