@@ -91,6 +91,8 @@ class DouyinProcessor:
             raise ValueError("从HTML中解析视频信息失败")
 
         json_data = json.loads(find_res.group(1).strip())
+        # 注意：(id) 是字面字符串，包含括号和下划线
+        # loaderData 的 key 格式遵循抖音 React Router 约定：video_(id)/page（视频页）、note_(id)/page（图集页）
         video_key = "video_(id)/page"
         note_key = "note_(id)/page"
 
@@ -286,7 +288,7 @@ def main():
     logger.info("启动 MCP 服务: host=%s, port=%s, request_timeout=%ss", host, port, REQUEST_TIMEOUT)
     
     # 获取 FastMCP 的 ASGI 应用
-    mcp_app = mcp.streamable_http_app()
+    mcp_app = mcp.http_app()
     
     # 创建 Starlette 应用，包含 MCP 路由和健康检查端点
     starlette_app = Starlette(
