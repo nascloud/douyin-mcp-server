@@ -143,9 +143,7 @@ docker run --rm -p 8000:8000 \
 
 ### Tools
 
-- `get_douyin_download_link`：获取抖音视频的无水印下载链接
-- `extract_douyin_text`：从抖音分享链接提取视频文本内容，需要 `API_KEY`
-- `parse_douyin_video_info`：解析抖音分享链接并返回基础信息
+TJ|- `process_douyin_video`：处理抖音视频，返回视频信息、无水印下载链接，以及（如配置了 `API_KEY`）提取的文本内容
 
 ### Resource
 
@@ -170,9 +168,19 @@ docker run --rm -p 8000:8000 \
 
 ## 使用说明
 
-- 如果只需要解析视频标题、`video_id` 和无水印地址，可直接调用 `parse_douyin_video_info` 或 `get_douyin_download_link`
+WK|- 如果只需要解析视频标题、`video_id` 和无水印地址，可直接调用 `process_douyin_video`
 - 如果需要提取视频语音文本，必须先配置环境变量 `API_KEY`
 - 服务启动后使用 `streamable-http` 传输方式对外提供 MCP 能力，监听地址由 `HOST` 和 `PORT` 控制
+
+## 响应状态说明
+
+工具返回的 JSON 响应包含 `status` 字段，表示处理结果：
+
+- `success`：视频信息解析成功，文本提取成功（如果配置了 `API_KEY`）
+- `partial_success`：视频信息解析成功，但文本提取失败或未配置 `API_KEY`
+- `error`：视频信息解析失败
+
+**注意**：即使状态为 `partial_success`，仍然可以获取视频信息和下载链接。请检查 `text_extracted` 字段确认文本是否成功提取。
 
 ## 免责声明
 
@@ -184,7 +192,3 @@ docker run --rm -p 8000:8000 \
 ## 许可证
 
 本项目采用 **Apache License 2.0**，以仓库根目录 `LICENSE` 文件为准。
-
-## 说明
-
-当前仓库的 `pyproject.toml` 仍声明为 MIT，但仓库根目录 `LICENSE` 为 Apache License 2.0。本文档已按 `LICENSE` 文件进行说明，建议后续同步修正项目元数据以消除不一致。

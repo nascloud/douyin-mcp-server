@@ -164,99 +164,75 @@ class DouyinProcessor:
             ) from e
 
 
-@mcp.tool()
-def get_douyin_download_link(share_link: str) -> str:
-    """获取抖音视频的无水印下载链接"""
-    try:
-        processor = DouyinProcessor("")
-        video_info = processor.parse_share_url(share_link)
-
-        return json.dumps(
-            {
-                "status": "success",
-                "video_id": video_info["video_id"],
-                "title": video_info["title"],
-                "download_url": video_info["url"],
-                "description": f"视频标题: {video_info['title']}",
-                "usage_tip": "可以直接使用此链接下载无水印视频",
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    except Exception as e:
-        return json.dumps(
-            {
-                "status": "error",
-                "error": f"获取下载链接失败: {type(e).__name__}: {str(e)}",
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-
 
 @mcp.tool()
-async def extract_douyin_text(
+async def process_douyin_video(
     share_link: str,
     model: Optional[str] = None,
     ctx: Context = None,
 ) -> str:
-    """从抖音分享链接提取视频中的文本内容"""
+    """处理抖音视频：解析视频信息、获取无水印链接、提取文本内容"""
     started_at = time.perf_counter()
     try:
+        # 获取 API_KEY 环境变量
         api_key = os.getenv("API_KEY")
-        if not api_key:
-            raise ValueError("未设置环境变量 API_KEY，请在配置中添加阿里云百炼API密钥")
+        processor = DouyinProcessor(api_key or "", model)
 
-        processor = DouyinProcessor(api_key, model)
-
+        # 解析视频信息
         if ctx:
             ctx.info("正在解析抖音分享链接...")
         video_info = processor.parse_share_url(share_link)
 
-        if ctx:
-            ctx.info("正在从视频中提取文本...")
-        text_content = processor.extract_text_from_video_url(video_info["url"])
+        result = {
+            "status": "success",
+            "video_id": video_info["video_id"],
+            "title": video_info["title"],
+            "download_url": video_info["url"],
+            "text_content": None,
+            "text_extracted": False,
+            "errors": [],
+        }
+
+        # 尝试提取文本（需要API_KEY）
+        if api_key:
+            try:
+                if ctx:
+                    ctx.info("正在从视频中提取文本...")
+                text_content = processor.extract_text_from_video_url(video_info["url"])
+                result["text_content"] = text_content
+                result["text_extracted"] = True
+            except Exception as text_error:
+                result["errors"].append(f"文本提取失败: {type(text_error).__name__}: {str(text_error)}")
+        else:
+            result["errors"].append("未设置环境变量 API_KEY，无法提取文本")
+            logger.warning("未设置环境变量 API_KEY，跳过文本提取")
 
         total_elapsed = time.perf_counter() - started_at
         logger.info(
-            "extract_douyin_text 调用完成: video_id=%s, total_elapsed=%.2fs",
+            "process_douyin_video 调用完成: video_id=%s, total_elapsed=%.2fs",
             video_info["video_id"],
             total_elapsed,
         )
+
         if ctx:
-            ctx.info("文本提取完成!")
-        return text_content
+            ctx.info("处理完成!")
+
+        # 如果有错误，更新状态为 partial_success
+        if result["errors"]:
+            result["status"] = "partial_success"
+        
+        return json.dumps(result, ensure_ascii=False, indent=2)
+
     except Exception as e:
         total_elapsed = time.perf_counter() - started_at
-        error_message = f"提取抖音视频文本失败: {type(e).__name__}: {str(e)}"
-        logger.exception("extract_douyin_text 调用失败: elapsed=%.2fs", total_elapsed)
+        error_message = f"处理抖音视频失败: {type(e).__name__}: {str(e)}"
+        logger.exception("process_douyin_video 调用失败: elapsed=%.2fs", total_elapsed)
         if ctx:
             ctx.error(error_message)
-        raise RuntimeError(error_message) from e
-
-
-@mcp.tool()
-def parse_douyin_video_info(share_link: str) -> str:
-    """解析抖音分享链接，获取视频基本信息"""
-    try:
-        processor = DouyinProcessor("")
-        video_info = processor.parse_share_url(share_link)
-
-        return json.dumps(
-            {
-                "video_id": video_info["video_id"],
-                "title": video_info["title"],
-                "download_url": video_info["url"],
-                "status": "success",
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-    except Exception as e:
         return json.dumps(
             {
                 "status": "error",
-                "error": f"{type(e).__name__}: {str(e)}",
+                "errors": [error_message],
             },
             ensure_ascii=False,
             indent=2,
@@ -289,9 +265,7 @@ def douyin_text_extraction_guide() -> str:
 - `API_KEY`: 阿里云百炼API密钥
 
 ## 工具说明
-- `extract_douyin_text`: 完整的文本提取流程（需要API密钥）
-- `get_douyin_download_link`: 获取无水印视频下载链接（无需API密钥）
-- `parse_douyin_video_info`: 仅解析视频基本信息
+- `process_douyin_video`: 处理抖音视频，返回视频信息、无水印下载链接，以及（如果配置了API_KEY）提取的文本内容
 - `douyin://video/{video_id}`: 获取指定视频的详细信息
 """
 
