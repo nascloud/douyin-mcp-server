@@ -288,7 +288,7 @@ def main():
     logger.info("启动 MCP 服务: host=%s, port=%s, request_timeout=%ss", host, port, REQUEST_TIMEOUT)
     
     # 获取 FastMCP 的 ASGI 应用
-    mcp_app = mcp.http_app()
+    mcp_app = mcp.http_app(transport='streamable-http')
     
     # 创建 Starlette 应用，包含 MCP 路由和健康检查端点
     starlette_app = Starlette(
