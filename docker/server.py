@@ -294,7 +294,7 @@ def main():
     starlette_app = Starlette(
         routes=[
             Route("/health", health_check),
-            Mount("/mcp", app=mcp_app),
+            Mount("/mcp", app=mcp_app, strict_slashes=False),
         ]
     )
     
