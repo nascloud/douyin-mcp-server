@@ -15,14 +15,15 @@ import time
 import logging
 from typing import Optional, Dict, Any, List
 from enum import Enum
-from contextlib import asynccontextmanager
+from fastmcp import FastMCP, Context
+from fastmcp.server.lifespan import lifespan
+from starlette.responses import JSONResponse
 from urllib import request
 from http import HTTPStatus
 
 import httpx
 import dashscope
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from fastmcp import FastMCP, Context
 
 
 # ============================================================
@@ -117,8 +118,8 @@ class GetVideoInfoInput(BaseModel):
 # 生命周期管理
 # ============================================================
 
-@asynccontextmanager
-async def server_lifespan():
+@lifespan
+async def server_lifespan(server):
     """服务器生命周期管理 - 初始化和清理资源"""
     logger.info("初始化抖音 MCP 服务器...")
     
@@ -140,6 +141,16 @@ mcp = FastMCP(
     "douyin_mcp",
     lifespan=server_lifespan,
 )
+
+
+# ============================================================
+# 健康检查端点
+# ============================================================
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    """健康检查端点"""
+    return JSONResponse({"status": "healthy", "service": "douyin_mcp"})
 
 
 # ============================================================
