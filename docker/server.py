@@ -382,10 +382,8 @@ async def process_douyin_video(
         processor = DouyinProcessor(api_key or "", params.model)
 
         # 解析视频信息
-        await ctx.report_progress(0.2, "正在解析抖音分享链接...")
-        await ctx.log_info(f"开始处理分享链接: {params.share_link[:50]}...")
+        logger.info("开始处理分享链接: %s", params.share_link[:50])
         video_info = await processor.parse_share_url(params.share_link)
-        await ctx.report_progress(0.5, "视频信息解析完成")
 
         # 构建结果
         result = ProcessVideoOutput(
@@ -399,26 +397,24 @@ async def process_douyin_video(
         # 尝试提取文本（需要API_KEY）
         if api_key:
             try:
-                await ctx.report_progress(0.6, "正在从视频中提取文本...")
-                await ctx.log_info("开始提取视频文本...")
+                logger.info("开始提取视频文本...")
                 text_content = await processor.extract_text_from_video_url(video_info.download_url)
                 result.text_content = text_content
                 result.text_extracted = True
-                await ctx.report_progress(1.0, "处理完成")
             except Exception as text_error:
                 error_msg = _handle_error(text_error, "文本提取失败")
                 result.errors.append(error_msg)
-                await ctx.log_error(f"文本提取失败: {error_msg}")
+                logger.error("文本提取失败: %s", error_msg)
         else:
             result.errors.append("未设置环境变量 API_KEY，无法提取文本")
-            await ctx.log_warning("API_KEY 未设置，跳过文本提取")
+            logger.warning("API_KEY 未设置，跳过文本提取")
 
         # 更新状态
         if result.errors:
             result.status = "partial_success"
 
         total_elapsed = time.perf_counter() - started_at
-        await ctx.log_info(f"处理完成: video_id={video_info.video_id}, elapsed={total_elapsed:.2f}s")
+        logger.info("处理完成: video_id=%s, elapsed=%.2fs", video_info.video_id, total_elapsed)
         
         # 根据格式返回
         if params.response_format == ResponseFormat.MARKDOWN:
@@ -432,7 +428,7 @@ async def process_douyin_video(
     except Exception as e:
         total_elapsed = time.perf_counter() - started_at
         error_message = _handle_error(e, "处理抖音视频失败")
-        await ctx.log_error(f"处理失败: {error_message}, elapsed={total_elapsed:.2f}s")
+        logger.error("处理失败: %s, elapsed=%.2fs", error_message, total_elapsed)
         
         error_output = ProcessVideoOutput(
             status="error",
@@ -456,7 +452,7 @@ async def get_video_info(video_id: str, ctx: Context) -> str:
     Returns:
         str: JSON 格式的视频信息
     """
-    await ctx.log_info(f"获取视频信息: video_id={video_id}")
+    logger.info("获取视频信息: video_id=%s", video_id)
     
     try:
         processor = DouyinProcessor("")
@@ -465,8 +461,8 @@ async def get_video_info(video_id: str, ctx: Context) -> str:
         )
         return video_info.model_dump_json(ensure_ascii=False, indent=2)
     except Exception as e:
-        error_message = _handle_error(e, f"获取视频信息失败: {video_id}")
-        await ctx.log_error(error_message)
+        error_message = _handle_error(e, f"获取视频信息失败: video_id={video_id}")
+        logger.error(error_message)
         return json.dumps(
             {"status": "error", "error": error_message},
             ensure_ascii=False,
