@@ -90,8 +90,10 @@ class DouyinProcessor:
 
         share_url = urls[0]
         share_response = requests.get(share_url, headers=HEADERS)
-        video_id = share_response.url.split("?")[0].strip("/").split("/")[-1]
-        share_url = f'https://www.iesdouyin.com/share/video/{video_id}'
+        # Keep the signed SSR query parameters returned by the short-link redirect.
+        # Requesting the bare URL may omit videoInfoRes from Douyin's page data.
+        share_url = share_response.url
+        video_id = share_url.split("?")[0].strip("/").split("/")[-1]
 
         # 获取视频页面内容
         response = requests.get(share_url, headers=HEADERS)
